@@ -1,20 +1,68 @@
 #!/bin/bash
 
-function log() {
-	if [[ -t 1 ]]; then
-		printf "\x1b[1m\x1b[32m>>>\x1b[0m \x1b[1m%s\x1b[0m\n" "$1"
-	else
-		printf ">>> %s\n" "$1"
-	fi
+##
+# This file is part of `scr-be/src-run-bldr`
+#
+# (c) Hal Brodigan
+#
+# For the full copyright and license information, view the LICENSE.md
+# file distributed with this source code.
+##
+
+
+#
+# Recursively resolve symbolic links in path to determine true real path of
+# the passed file path.
+#
+
+function resolve_real_filepath() {
+    local path="${1}"
+    local real
+
+    while [ -h "${path}" ]; do
+        real="$(cd -P "$(dirname "${path}")" && pwd)"
+        path="$(readlink "${path}")"
+
+        [[ ${path} != /* ]] && path="${real}/${path}"
+    done
+
+    printf -- "$(cd -P "$(dirname "${path}" )" && pwd)"
 }
 
-log "Running tests under $SHELL ..."
-error=0
+
+#
+# Locate test files and call using the requested shell.
+#
+
+# Define read-only test variables for path and name.
+readonly TEST_PATH="$(resolve_real_filepath "${BASH_SOURCE[0]}")"
+readonly TEST_NAME="gem-home"
+
+# Source file include containing test utility functions.
+source "${TEST_PATH}/.test_funcs.sh"
+
+write_head "Running tests using $(basename ${SHELL}) shell"
+write_info "Running "${SHELL}" $*${*:+ }"${test}" ..."
+write_info \
+    'Doing foo and bar so baz (action = "%s") (return = "%d")' \
+    "Running "${SHELL}" $*${*:+ }"${test}" ..." \
+    123456
+write_warn 'Encountered a warning while trying to perform "foo" action during "bar" operation!'
+write_info \
+    'Doing foo and bar so baz (action = "%s") (return = "%d")' \
+    "Running "${SHELL}" $*${*:+ }"${test}" ..." \
+    123456
+write_okay 'Completed "foo" operations in 12 minutes...'
+write_fail 'Failed to perform "foo" action during "bar" operation!'
+exit
 
 for test in ${0%/*}/*_test.sh; do
-	log "Running $test ..."
-	"$SHELL" $* "$test" || error=1
-	echo
+    write_info \
+        '%s' \
+        "Running "${SHELL}" $*${*:+ }"${test}" ..."
+    write_feed 1
+    "${SHELL}" $*${*:+ }"${test}" || error=$?
+    write_feed 1
 done
 
-exit "$error"
+exit "${error:-0}"
